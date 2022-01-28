@@ -31,14 +31,14 @@ class STD:
         STD.print(*args, s, color=color, same_line=True)
         if progress >= 100:
             print("", flush=True)
+
     @staticmethod
-    def print_separator(chr,cols, color=''):
+    def print_separator(chr, cols, color=''):
         s = f"{STD.RESET}"
         if color:
             s += color
-        s += chr * 42 + (chr * 33 * (cols - 1 ))
+        s += chr * 42 + (chr * 33 * (cols - 1))
         print(s, flush=True)
-
 
     @staticmethod
     def print(*args, color=None, same_line=False):
@@ -60,7 +60,7 @@ class AppTools():
         ret = requests.get(f"{WEB}/{repo}/releases/latest")
         tag = ret.url.split("/")[-1]
         if ret and ".appimage" in ret.text.lower():
-            repos.append((repo, tag))
+            repos[repo] = tag
 
     def _install_appimaged(self):
         if APPIMAGED not in self._apps.keys():
@@ -81,7 +81,8 @@ class AppTools():
 
     def _load_state(self, repo):
         installed = os.path.exists(self._apps[repo]["path"])
-        need_update = self._apps[repo]["latest"]["url"] and self._apps[repo]["current"]["url"] != self._apps[repo]["latest"]["url"]
+        need_update = self._apps[repo]["latest"]["url"] and self._apps[
+            repo]["current"]["url"] != self._apps[repo]["latest"]["url"]
         self._apps[repo]["state"] = {
             "need_update": need_update,
             "installed": installed
@@ -146,18 +147,23 @@ class AppTools():
                 if chunk:
                     i += chunk_size
                     application.write(chunk)
-                    STD.print_progress(repo,f"Downloading {self._apps[repo]['latest']['tag']}", i=i, length=length, color=STD.WARNING)
-        STD.print(repo, "Application updated",self._apps[repo]["latest"]["tag"], color=STD.SUCCESS)
+                    STD.print_progress(repo,
+                        "Installing",
+                        "New version available !",
+                        self._apps[repo]["current"]["tag"],
+                        i=i, length=length,
+                        color=STD.WARNING
+                        )
         os.chmod(self._apps[repo]["path"], 0o755)
         self._apps[repo]["current"]["url"] = self._apps[repo]["latest"]["url"]
         self._apps[repo]["current"]["tag"] = self._apps[repo]["latest"]["tag"]
         self._load_state(repo)
-        self._save()
+        self._print_status(repo)
 
     def _search(self, keywords):
         ret = requests.get(
             f"{API}/search/repositories?q={keywords} in:name&page_size=100")
-        repos = []
+        repos = {}
         if ret:
             d = ret.json()
             threads = []
@@ -170,7 +176,6 @@ class AppTools():
                 t.join()
         return repos
 
-
     def _check(self, repo):
         latest_url, latest_tag = self._get_latest_version(repo)
         self._apps[repo]["latest"] = {
@@ -178,8 +183,39 @@ class AppTools():
             "tag": latest_tag
         }
         self._load_state(repo)
-        
 
+    def _update(self, repo):
+        if repo in self._apps.keys():
+            if self._apps[repo]["state"]["need_update"]:
+                self._download(repo)
+            else:
+                self._print_status(repo)
+        else:
+            self._print_status(repo)
+
+    def _print_headers(self):
+        STD.print_separator('_', 5, color=STD.INFO)
+        STD.print("REPO NAME", "INSTALLED", "STATUS",
+                  "CURRENT", "LATEST", color=STD.INFO)
+        STD.print_separator('_', 5, color=STD.INFO)
+
+    def _print_status(self, repo):
+        color = STD.INFO
+        if not self._apps[repo]["state"]["installed"]:
+            color = STD.ERROR
+        elif self._apps[repo]["state"]["need_update"]:
+            color = STD.WARNING
+        else:
+            color = STD.SUCCESS
+        STD.print(repo,
+                "Installed" if self._apps[repo]["state"]["installed"] else "Pending",
+                "New version available !" if self._apps[repo]["state"]["need_update"] else "Up to date",
+                 self._apps[repo]["current"]["tag"],
+                 self._apps[repo]["latest"]["tag"],
+                color=color
+                )
+    def _print_footer(self):
+        STD.print_separator('_', 5, color=STD.INFO)
 
 class AppManager(AppTools):
 
@@ -195,32 +231,47 @@ class AppManager(AppTools):
         """
         if not keywords:
             return
-        
-        repos = self._search(keywords)
-        repos += self._search(f"{keywords} appimage")
-        
+
+        repos=self._search(keywords)
+        repos.update(self._search(f"{keywords} appimage"))
+
         if len(repos) > 0:
-            STD.print_separator('_',3, color=STD.INFO)
-            STD.print("REPO NAME", "VERSION", "ID", color=STD.INFO)
-            STD.print_separator('_',3, color=STD.INFO)
-            for id, (name, tag) in enumerate(repos):
+            self._print_headers()
+            for name, tag in repos.items():
+                color = STD.INFO
                 if name in self._apps.keys():
-                    if self._apps[name]["current"]["tag"] != tag:
-                        STD.print(name, tag, "OutDated", color=STD.WARNING)
+                    if not self._apps[name]["state"]["installed"]:
+                        color = STD.ERROR
+                    elif self._apps[name]["state"]["need_update"]:
+                        color = STD.WARNING
                     else:
-                        STD.print(name, tag, "Installed", color=STD.SUCCESS)
+                        color = STD.SUCCESS
+
+                    STD.print(name,
+                            "Installed" if self._apps[name]["state"]["installed"] else "Pending",
+                            "New version available !" if self._apps[name]["state"]["need_update"] else "Up to date",
+                            self._apps[name]["current"]["tag"],
+                            self._apps[name]["latest"]["tag"],
+                            color=color
+                            )
                 else:
-                    STD.print(name, tag, id, color=STD.INFO)
-            STD.print_separator('_',3, color=STD.INFO)
+                    STD.print(name,
+                            "Not installed",
+                            "Available",
+                            '',
+                            tag,
+                            color=color
+                            )
+            self._print_footer()
             try:
-                install = int(
-                    float(input(f"{STD.INFO}Please enter ID to install ( -1 for None ) ? : ") or -1))
-                if install < 0 or install > len(repos):
-                    return
-                else:
-                    repo, tag = repos[install]
-                    self.install(repo)
-                    return
+                repo=input(f"{STD.INFO}Please enter repos name to install ? : ")
+                if repo in repos:
+                    self._print_footer()
+                    self._add_app(repo)
+                    self._check(repo)
+                    self._update(repo)
+                    self._print_footer()
+
             except:
                 return
         else:
@@ -232,13 +283,15 @@ class AppManager(AppTools):
         """
         if not repo:
             return
-        
+
         if repo in self._apps.keys():
             STD.print(repo, "App already exists", color=STD.ERROR)
         else:
+            self._print_headers()
             self._add_app(repo)
             self._check(repo)
-            self.update(repo)
+            self._update(repo)
+            self._print_footer()
 
     def remove(self, repo):
         """
@@ -246,12 +299,11 @@ class AppManager(AppTools):
         """
         if not repo:
             return
-        
+
         if repo in self._apps.keys():
             if os.path.exists(self._apps[repo]["path"]):
                 os.unlink(self._apps[repo]["path"])
             del self._apps[repo]
-            self._save()
         else:
             STD.print(repo, "App not found", color=STD.ERROR)
 
@@ -261,21 +313,18 @@ class AppManager(AppTools):
         """
         if not repo:
             return
-        
-        if repo in self._apps.keys():
-            if self._apps[repo]["state"]["need_update"]:
-                self._download(repo)
-            else:
-                STD.print(repo, "UpToDate", color=STD.SUCCESS)
-        else:
-            STD.print(repo, "NotFound", color=STD.ERROR)
+        self._print_headers()
+        self._update(repo)
+        self._print_footer()
 
     def update_all(self):
         """
         Update all applications
         """
+        self._print_headers()
         for repo in self._apps.keys():
-            self.update(repo)
+            self._update(repo)
+        self._print_footer()
 
     def check(self, repo):
         """
@@ -283,32 +332,27 @@ class AppManager(AppTools):
         """
         if not repo:
             return
+        self._print_headers()
         self._check(repo)
-        if self._apps[repo]["state"]["need_update"]:
-            STD.print(repo, "New version available !",
-                        self._apps[repo]["latest"]["tag"], color=STD.WARNING)
-        else:
-            STD.print(repo, "UpToDate",
-                        self._apps[repo]["latest"]["tag"], color=STD.SUCCESS)
-        self._save()
+        self._print_status(repo)
+        self._print_footer()
+
+    def auto(self):
+        self._print_headers()
+        for repo in self._apps.keys():
+            self._check(repo)
+            self._update(repo)
+        self._print_footer()
 
     def list(self):
         """
         List installed applications
         """
-        STD.print_separator('_',5, color=STD.INFO)
-        STD.print("REPO NAME", "INSTALLED", "NEED UPDATE",
-                  "CURRENT", "LATEST", color=STD.INFO)
-        STD.print_separator('_',5, color=STD.INFO)
-        for repo, meta in self._apps.items():
-            color = STD.INFO
-            if not meta["state"]["installed"]:
-                color = STD.ERROR
-            elif meta["state"]["need_update"]:
-                color = STD.WARNING
-            STD.print(repo, meta["state"]["installed"], meta["state"]["need_update"],
-                      meta["current"]["tag"], meta["latest"]["tag"], color=color)
-        STD.print_separator('_',5, color=STD.INFO)
+        self._print_headers()
+        for repo in self._apps.keys():
+            self._print_status(repo)
+        self._print_footer()
 
-
-fire.Fire(AppManager())
+app_manager = AppManager()
+fire.Fire(app_manager)
+app_manager._save()
