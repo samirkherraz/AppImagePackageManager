@@ -18,8 +18,8 @@ class STD:
     SUCCESS = "\033[0;32m"
     RESET = "\033[0;0m"
     WARNING = '\033[33m'
-    FCOL_LENGTH = '{: <40} | '
-    RCOL_LENGTH = '{: <30} | '
+    FCOL_LENGTH = '{: <40} %s│ %s'
+    RCOL_LENGTH = '{: <30} %s│ %s'
 
     @staticmethod
     def print_progress(*args, i, length, color=''):
@@ -33,22 +33,25 @@ class STD:
             print("", flush=True)
 
     @staticmethod
-    def print_separator(chr, cols, color=''):
+    def print_separator(chr,chr_s, chr_e,chr_m, cols):
         s = f"{STD.RESET}"
-        if color:
-            s += color
-        s += chr * 42 + (chr * 33 * (cols - 1))
+        s += chr_s
+        s += chr * 42
+        s += chr_m
+        for _ in range(cols-1):
+            s += (chr * 32 + chr_m)
+        s = s[:-1] + chr_e
         print(s, flush=True)
 
     @staticmethod
     def print(*args, color=None, same_line=False):
+        if not color:
+            color = STD.RESET
         args = [str(e) for e in args]
         first = args.pop(0)
-        s = f"{STD.RESET}"
-        if color:
-            s += color
-        s += STD.FCOL_LENGTH.format(first)
-        s += (STD.RCOL_LENGTH * len(args)).format(*args)
+        s = f"{STD.RESET}│ {color}"
+        s += (STD.FCOL_LENGTH % (STD.RESET, color) ).format(first)
+        s += (STD.RCOL_LENGTH % (STD.RESET, color) * len(args)).format(*args)
         if same_line:
             print(f"\r{s}", end=' ', flush=True)
         else:
@@ -81,8 +84,8 @@ class AppTools():
 
     def _load_state(self, repo):
         installed = os.path.exists(self._apps[repo]["path"])
-        need_update = self._apps[repo]["latest"]["url"] and self._apps[
-            repo]["current"]["url"] != self._apps[repo]["latest"]["url"]
+        need_update = self._apps[repo]["latest"]["url"] and self._apps[repo]["current"]["url"] != self._apps[repo]["latest"]["url"]
+        # need_update |= self._apps[repo]["latest"]["tag"] and self._apps[repo]["current"]["tag"] != self._apps[repo]["latest"]["tag"]
         self._apps[repo]["state"] = {
             "need_update": need_update,
             "installed": installed
@@ -193,11 +196,12 @@ class AppTools():
         else:
             self._print_status(repo)
 
-    def _print_headers(self):
-        STD.print_separator('_', 5, color=STD.INFO)
-        STD.print("REPO NAME", "INSTALLED", "STATUS",
+    def _print_headers(self, labels=True):
+        STD.print_separator('─','╭','╮','┬', 5)
+        if labels:
+            STD.print("REPO NAME", "INSTALLED", "STATUS",
                   "CURRENT", "LATEST", color=STD.INFO)
-        STD.print_separator('_', 5, color=STD.INFO)
+            STD.print_separator( '─','├','┤','┼', 5)
 
     def _print_status(self, repo):
         color = STD.INFO
@@ -215,7 +219,7 @@ class AppTools():
                 color=color
                 )
     def _print_footer(self):
-        STD.print_separator('_', 5, color=STD.INFO)
+        STD.print_separator( '─','╰','╯','┴', 5)
 
 class AppManager(AppTools):
 
@@ -266,7 +270,7 @@ class AppManager(AppTools):
             try:
                 repo=input(f"{STD.INFO}Please enter repos name to install ? : ")
                 if repo in repos:
-                    self._print_footer()
+                    self._print_headers(False)
                     self._add_app(repo)
                     self._check(repo)
                     self._update(repo)
