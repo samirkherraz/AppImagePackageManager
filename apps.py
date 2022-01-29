@@ -18,8 +18,8 @@ class STD:
     SUCCESS = "\033[0;32m"
     RESET = "\033[0;0m"
     WARNING = '\033[33m'
-    FCOL_LENGTH = '{: <40} %s│ %s'
-    RCOL_LENGTH = '{: <30} %s│ %s'
+    F_COL_LENGTH = '{: <40} %s│ %s'
+    R_COL_LENGTH = '{: <30} %s│ %s'
 
     @staticmethod
     def print_progress(*args, i, length, color=''):
@@ -29,8 +29,6 @@ class STD:
         progress = i / length * 100
         s = '{: >22}'.format(f"[{cur}{remain}] {'%2.0f' % progress}%")
         STD.print(*args, s, color=color, same_line=True)
-        if progress >= 100:
-            print("", flush=True)
 
     @staticmethod
     def print_separator(chr,chr_s, chr_e,chr_m, cols):
@@ -50,15 +48,23 @@ class STD:
         args = [str(e) for e in args]
         first = args.pop(0)
         s = f"{STD.RESET}│ {color}"
-        s += (STD.FCOL_LENGTH % (STD.RESET, color) ).format(first)
-        s += (STD.RCOL_LENGTH % (STD.RESET, color) * len(args)).format(*args)
+        s += (STD.F_COL_LENGTH % (STD.RESET, color) ).format(first)
+        s += (STD.R_COL_LENGTH % (STD.RESET, color) * len(args)).format(*args)
         if same_line:
             print(f"\r{s}", end=' ', flush=True)
         else:
             print(s, flush=True)
     @staticmethod
     def message(str_message, color=''):
-        STD.print_separator('─','╭','⚠️','┬', 1)
+        icon = 'ℹ️'
+        if color == STD.ERROR:
+            icon = '⛔️'
+        elif color == STD.WARNING:
+            icon = '⚠️'
+        elif color == STD.SUCCESS:
+            icon = '✅️'
+
+        STD.print_separator('─','╭',icon, '┬', 1)
         str_message = '\n'.join(line.strip() for line in re.findall(r'.{1,40}(?:\s+|$)', str_message))
         for s in str_message.splitlines():
             STD.print(s, color=color)
@@ -167,7 +173,7 @@ class AppTools():
         self._apps[repo]["current"]["url"] = self._apps[repo]["latest"]["url"]
         self._apps[repo]["current"]["tag"] = self._apps[repo]["latest"]["tag"]
         self._load_state(repo)
-        self._print_status(repo)
+        self._print_status(repo, same_line=True)
 
     def _search(self, keywords):
         ret = requests.get(
@@ -221,14 +227,17 @@ class AppTools():
                   "CURRENT", "LATEST", color=STD.INFO)
             STD.print_separator( '─','├','┤','┼', 4)
 
-    def _print_status(self, repo):
+    def _print_status(self, repo, same_line=False):
         color, status = self._get_color_and_status(repo)
         STD.print(repo,
                  status,
                  self._apps[repo]["current"]["tag"],
                  self._apps[repo]["latest"]["tag"],
-                color=color
+                color=color,
+                same_line=same_line
                 )
+        if same_line:
+            print()
     def _print_footer(self):
         STD.print_separator('─','╰','╯','┴', 4)
 
@@ -244,9 +253,6 @@ class AppManager(AppTools):
         """
         Search for an application by name
         """
-        if not keywords:
-            return
-
         repos=self._search(keywords)
         repos.update(self._search(f"{keywords} appimage"))
 
@@ -272,6 +278,8 @@ class AppManager(AppTools):
             self._print_footer()
             try:
                 repo=input(f"{STD.INFO}▶ Please enter repos name to install ? : ")
+                if not repo:
+                    return 
                 if repo in repos:
                     self._print_headers(False)
                     self._add_app(repo)
@@ -282,7 +290,7 @@ class AppManager(AppTools):
                     STD.message(f"Sorry, but {repo} is not present in application list",color=STD.ERROR)
 
             except:
-                STD.message(f"Sorry, but {repo} is not present in application list",color=STD.ERROR)
+                pass
         else:
             STD.message(f"Sorry, there are no repos found for {keywords}", color=STD.ERROR)
 
@@ -290,20 +298,22 @@ class AppManager(AppTools):
         """
         Install an application from Github repository name
         """
-        if not repo:
-            return
-
-        self._print_headers()
-        self._add_app(repo)
-        self._check(repo)
-        self._update(repo)
-        self._print_footer()
+        repos = self._search(repo)
+        if repo in repos:
+            self._print_headers()
+            self._add_app(repo)
+            self._check(repo)
+            self._update(repo)
+            self._print_footer()
+        else:
+            STD.message("Sorry, but {repo} couldn't be found", color=STD.ERROR)
 
     def remove(self, repo):
         """
         Remove an application
         """
-        if not repo:
+        if repo not in self._apps:
+            STD.message(f"Sorry, {repo} is not found in installed applications", color=STD.ERROR)
             return
 
         if repo in self._apps.keys():
@@ -319,35 +329,38 @@ class AppManager(AppTools):
         """
         Update an application, if not specified, all applications will be updated
         """
-        if not repo:
+        if repo not in self._apps:
+            STD.message(f"Sorry, {repo} is not found in installed applications", color=STD.ERROR)
             return
         self._print_headers()
         self._update(repo)
-        self._print_footer()
-
-    def update_all(self):
-        """
-        Update all applications
-        """
-        self._print_headers()
-        for repo in self._apps.keys():
-            self._update(repo)
         self._print_footer()
 
     def check(self, repo):
         """
         Check if newer version is available for an application, if not specified, all applications will be checked
         """
-        if not repo:
+        if repo not in self._apps:
+            STD.message(f"Sorry, {repo} is not found in installed applications", color=STD.ERROR)
             return
         self._print_headers()
         self._check(repo)
         self._print_status(repo)
         self._print_footer()
 
+
+    def update_all(self):
+        """
+        Update all applications
+        """
+        self._print_headers()
+        for repo in self._apps:
+            self._update(repo)
+        self._print_footer()
+
     def auto(self):
         self._print_headers()
-        for repo in self._apps.keys():
+        for repo in self._apps:
             self._check(repo)
             self._update(repo)
         self._print_footer()
@@ -357,10 +370,9 @@ class AppManager(AppTools):
         List installed applications
         """
         self._print_headers()
-        for repo in self._apps.keys():
+        for repo in self._apps:
             self._print_status(repo)
         self._print_footer()
-
 app_manager = AppManager()
 fire.Fire(app_manager)
 app_manager._save()
