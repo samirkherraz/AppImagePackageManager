@@ -5,5 +5,7 @@ AppImage Package Manager is a simple tool written in python  that allows you to 
 see: https://github.com/probonopd/go-appimage
 
 Samir KHERRAZ
+
 https://www.equantum.fr
+
 https://github.com/samirkherraz/AppImagePackageManager
