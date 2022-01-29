@@ -5,8 +5,7 @@ AppImage Package Manager is a simple tool written in python  that allows you to 
 ## Dependencies:
 **Fire** : https://github.com/google/python-fire
 
-
-see: https://github.com/probonopd/go-appimage
+**See also** : https://github.com/probonopd/go-appimage
 
 Samir KHERRAZ
 
