@@ -56,7 +56,14 @@ class STD:
             print(f"\r{s}", end=' ', flush=True)
         else:
             print(s, flush=True)
-
+    @staticmethod
+    def message(str_message, color=''):
+        STD.print_separator('─','╭','⚠️','┬', 1)
+        str_message = '\n'.join(line.strip() for line in re.findall(r'.{1,40}(?:\s+|$)', str_message))
+        for s in str_message.splitlines():
+            STD.print(s, color=color)
+        STD.print_separator('─','╰','╯','┴', 1)
+    
 
 class AppTools():
     def _test_repo(self, repo, repos):
@@ -152,7 +159,6 @@ class AppTools():
                     application.write(chunk)
                     STD.print_progress(repo,
                         "Installing",
-                        "New version available !",
                         self._apps[repo]["current"]["tag"],
                         i=i, length=length,
                         color=STD.WARNING
@@ -196,30 +202,35 @@ class AppTools():
         else:
             self._print_status(repo)
 
-    def _print_headers(self, labels=True):
-        STD.print_separator('─','╭','╮','┬', 5)
-        if labels:
-            STD.print("REPO NAME", "INSTALLED", "STATUS",
-                  "CURRENT", "LATEST", color=STD.INFO)
-            STD.print_separator( '─','├','┤','┼', 5)
-
-    def _print_status(self, repo):
-        color = STD.INFO
+    def _get_color_and_status(self, repo):
         if not self._apps[repo]["state"]["installed"]:
             color = STD.ERROR
+            status = "❌️ Pending"
         elif self._apps[repo]["state"]["need_update"]:
             color = STD.WARNING
+            status = "💡️ New version available !"
         else:
             color = STD.SUCCESS
+            status = "✅️ Up to date"
+        return (color, status)
+
+    def _print_headers(self, labels=True):
+        STD.print_separator('─','╭','╮','┬', 4)
+        if labels:
+            STD.print("APPLICATION", "STATUS",
+                  "CURRENT", "LATEST", color=STD.INFO)
+            STD.print_separator( '─','├','┤','┼', 4)
+
+    def _print_status(self, repo):
+        color, status = self._get_color_and_status(repo)
         STD.print(repo,
-                "Installed" if self._apps[repo]["state"]["installed"] else "Pending",
-                "New version available !" if self._apps[repo]["state"]["need_update"] else "Up to date",
+                 status,
                  self._apps[repo]["current"]["tag"],
                  self._apps[repo]["latest"]["tag"],
                 color=color
                 )
     def _print_footer(self):
-        STD.print_separator( '─','╰','╯','┴', 5)
+        STD.print_separator('─','╰','╯','┴', 4)
 
 class AppManager(AppTools):
 
@@ -242,44 +253,38 @@ class AppManager(AppTools):
         if len(repos) > 0:
             self._print_headers()
             for name, tag in repos.items():
-                color = STD.INFO
+                color = STD.RESET
                 if name in self._apps.keys():
-                    if not self._apps[name]["state"]["installed"]:
-                        color = STD.ERROR
-                    elif self._apps[name]["state"]["need_update"]:
-                        color = STD.WARNING
-                    else:
-                        color = STD.SUCCESS
-
+                    color, status = self._get_color_and_status(name)
                     STD.print(name,
-                            "Installed" if self._apps[name]["state"]["installed"] else "Pending",
-                            "New version available !" if self._apps[name]["state"]["need_update"] else "Up to date",
+                            status,
                             self._apps[name]["current"]["tag"],
                             self._apps[name]["latest"]["tag"],
                             color=color
                             )
                 else:
                     STD.print(name,
-                            "Not installed",
-                            "Available",
+                            "💡️ Available",
                             '',
                             tag,
                             color=color
                             )
             self._print_footer()
             try:
-                repo=input(f"{STD.INFO}Please enter repos name to install ? : ")
+                repo=input(f"{STD.INFO}▶ Please enter repos name to install ? : ")
                 if repo in repos:
                     self._print_headers(False)
                     self._add_app(repo)
                     self._check(repo)
                     self._update(repo)
                     self._print_footer()
+                else:
+                    STD.message(f"Sorry, but {repo} is not present in application list",color=STD.ERROR)
 
             except:
-                return
+                STD.message(f"Sorry, but {repo} is not present in application list",color=STD.ERROR)
         else:
-            STD.print("Sorry, there are no repos found", color=STD.ERROR)
+            STD.message(f"Sorry, there are no repos found for {keywords}", color=STD.ERROR)
 
     def install(self, repo):
         """
@@ -288,14 +293,11 @@ class AppManager(AppTools):
         if not repo:
             return
 
-        if repo in self._apps.keys():
-            STD.print(repo, "App already exists", color=STD.ERROR)
-        else:
-            self._print_headers()
-            self._add_app(repo)
-            self._check(repo)
-            self._update(repo)
-            self._print_footer()
+        self._print_headers()
+        self._add_app(repo)
+        self._check(repo)
+        self._update(repo)
+        self._print_footer()
 
     def remove(self, repo):
         """
@@ -308,8 +310,10 @@ class AppManager(AppTools):
             if os.path.exists(self._apps[repo]["path"]):
                 os.unlink(self._apps[repo]["path"])
             del self._apps[repo]
+            STD.message(f"Application {repo} successfully removed", color=STD.SUCCESS)
+
         else:
-            STD.print(repo, "App not found", color=STD.ERROR)
+            STD.message(f"Application {repo} is not found", color=STD.ERROR)
 
     def update(self, repo):
         """
