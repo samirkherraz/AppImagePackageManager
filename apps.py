@@ -20,6 +20,10 @@ class STD:
     WARNING = '\033[33m'
     F_COL_LENGTH = '{: <40} %s│ %s'
     R_COL_LENGTH = '{: <30} %s│ %s'
+    I_ERROR =  '⛔️'
+    I_WARNING ='⚠️'
+    I_SUCCESS = '✅️'
+    I_INFO = '💡️'
 
     @staticmethod
     def print_progress(*args, i, length, color=''):
@@ -56,13 +60,13 @@ class STD:
             print(s, flush=True)
     @staticmethod
     def message(str_message, color=''):
-        icon = 'ℹ️'
+        icon = STD.I_INFO
         if color == STD.ERROR:
-            icon = '⛔️'
+            icon = STD.I_ERROR
         elif color == STD.WARNING:
-            icon = '⚠️'
+            icon = STD.I_WARNING
         elif color == STD.SUCCESS:
-            icon = '✅️'
+            icon = STD.I_SUCCESS
 
         STD.print_separator('─','╭',icon, '┬', 1)
         str_message = '\n'.join(line.strip() for line in re.findall(r'.{1,40}(?:\s+|$)', str_message))
@@ -98,7 +102,6 @@ class AppTools():
     def _load_state(self, repo):
         installed = os.path.exists(self._apps[repo]["path"])
         need_update = self._apps[repo]["latest"]["url"] and self._apps[repo]["current"]["url"] != self._apps[repo]["latest"]["url"]
-        # need_update |= self._apps[repo]["latest"]["tag"] and self._apps[repo]["current"]["tag"] != self._apps[repo]["latest"]["tag"]
         self._apps[repo]["state"] = {
             "need_update": need_update,
             "installed": installed
@@ -211,13 +214,13 @@ class AppTools():
     def _get_color_and_status(self, repo):
         if not self._apps[repo]["state"]["installed"]:
             color = STD.ERROR
-            status = "❌️ Pending"
+            status = STD.I_ERROR+" Pending"
         elif self._apps[repo]["state"]["need_update"]:
             color = STD.WARNING
-            status = "💡️ New version available !"
+            status = STD.I_WARNING+" New version available !"
         else:
             color = STD.SUCCESS
-            status = "✅️ Up to date"
+            status = STD.I_SUCCESS+" Up to date"
         return (color, status)
 
     def _print_headers(self, labels=True):
@@ -242,6 +245,19 @@ class AppTools():
         STD.print_separator('─','╰','╯','┴', 4)
 
 class AppManager(AppTools):
+    """
+    AppImage Package Manager 
+    
+    AppImage Package Manager is a simple tool written in python 
+    that allows you to install AppImage applications retrieved from GitHub 
+    and integrate them into your GNU/Linux system 
+    
+    see: https://github.com/probonopd/go-appimage
+
+    Samir KHERRAZ
+    https://www.equantum.fr
+    https://github.com/samirkherraz/AppImagePackageManager
+    """
 
     def __init__(self):
         if not os.path.exists(APPDIR):
@@ -270,14 +286,14 @@ class AppManager(AppTools):
                             )
                 else:
                     STD.print(name,
-                            "💡️ Available",
+                            STD.I_INFO+" Available",
                             '',
                             tag,
                             color=color
                             )
             self._print_footer()
             try:
-                repo=input(f"{STD.INFO}▶ Please enter repos name to install ? : ")
+                repo=input(f"{STD.INFO}{STD.I_INFO} Please enter repos name to install ? : ")
                 if not repo:
                     return 
                 if repo in repos:
@@ -359,6 +375,9 @@ class AppManager(AppTools):
         self._print_footer()
 
     def auto(self):
+        """
+        Check for newer versions and update all applications
+        """
         self._print_headers()
         for repo in self._apps:
             self._check(repo)
