@@ -147,13 +147,15 @@ class AppTools():
     def _get_latest_version(self, repo):
         url = None
         tag = None
-        ret = requests.get(f"{WEB}/{repo}/releases/latest")
-        if ret:
-            tag = ret.url.split("/")[-1]
-            urls = [f"{WEB}{''.join(e)}" for e in re.findall(
-                '"(/'+repo+'/)(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)*(\.AppImage|\.appimage)"', ret.text.rstrip())]
-            url = next((u for u in urls if not re.match(
-                ".*(arm|i\d{3}|aarch|linux32).*", u)), None)
+        ret = requests.get(f"{WEB}/{repo}/releases/latest", allow_redirects=False)
+        if ret.status_code == 302:
+            tag = ret.headers["Location"].split("/")[-1]
+            ret = requests.get(f"{WEB}/{repo}/releases/expanded_assets/{tag}") 
+            if ret:
+                urls = [f"{WEB}{''.join(e)}" for e in re.findall(
+                    '"(/'+repo+'/)(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)*(\.AppImage|\.appimage)"', ret.text.rstrip())]
+                url = next((u for u in urls if not re.match(
+                    ".*(arm|i\d{3}|aarch|linux32).*", u)), None)
         return (url, tag)
 
     def _download(self, repo):
